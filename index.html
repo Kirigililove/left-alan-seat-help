@@ -32,7 +32,7 @@ logoutBtn.onclick=async()=>{ if(state.token) await rpc('zd_logout',{p_token:stat
 function render(){ logoutBtn.classList.toggle('hide',!state.user); if(!state.user) return renderAuth(); if(['needs_proof','rejected'].includes(state.user.status)) return renderProof(); if(state.user.status==='pending') return html('<section class="panel"><div class="body"><div class="status"><b>等待管理员审核</b><p class="muted">审核通过前不会显示座位图、人数、红点或同担信息。</p></div></div></section>'); if(state.user.role==='admin') return renderAdmin(); return renderUser(); }
 function html(s){ app.innerHTML=s; }
 function renderAuth(){
-  html('<section class="panel auth-hero"><div class="auth-card"><div class="auth-copy"><h3>左邓粉丝专属座位互助</h3><p class="muted">先注册证号，提交自证，通过后再登记座位。未审核用户不会看到座位图。</p><div class="steps"><div class="step"><span class="dot">1</span>注册证号</div><div class="step"><span class="dot">2</span>上传自证</div><div class="step"><span class="dot">3</span>等待审核</div><div class="step"><span class="dot">4</span>查看附近同担</div></div></div><div class="auth-form"><div class="tabs"><button id="loginTab" class="'+(state.tab==='login'?'active':'')+'">登录</button><button id="regTab" class="'+(state.tab==='register'?'active':'')+'">注册证号</button></div><div class="form"><label class="field full"><span>账号 / 证号</span><input id="account"></label><label class="field full"><span>密码</span><input id="password" type="password"></label>'+(state.tab==='register'?'<label class="field full"><span>确认密码</span><input id="password2" type="password"></label>':'')+'<button id="authGo" class="btn full">'+(state.tab==='register'?'注册':'登录')+'</button><p class="muted full">如果忘记密码，请联系小管注销旧账号，再注册新的。</p></div></div></div></section>');
+  html('<section class="panel auth-hero"><div class="auth-card"><div class="auth-copy"><h3>左邓粉丝专属座位互助</h3><p class="muted">先注册账号，提交自证，通过后再登记座位。未审核用户不会看到座位图。</p><div class="steps"><div class="step"><span class="dot">1</span>注册账号</div><div class="step"><span class="dot">2</span>上传自证</div><div class="step"><span class="dot">3</span>等待审核</div><div class="step"><span class="dot">4</span>查看附近同担</div></div></div><div class="auth-form"><div class="tabs"><button id="loginTab" class="'+(state.tab==='login'?'active':'')+'">登录</button><button id="regTab" class="'+(state.tab==='register'?'active':'')+'">注册账号</button></div><div class="form"><label class="field full"><span>账号 / 昵称</span><input id="account"></label><label class="field full"><span>密码</span><input id="password" type="password"></label>'+(state.tab==='register'?'<label class="field full"><span>确认密码</span><input id="password2" type="password"></label>':'')+'<button id="authGo" class="btn full">'+(state.tab==='register'?'注册':'登录')+'</button><p class="muted full">如果忘记密码，请联系小管注销旧账号，再注册新的。</p></div></div></div></section>');
   document.getElementById('loginTab').onclick=()=>{state.tab='login';render()};
   document.getElementById('regTab').onclick=()=>{state.tab='register';render()};
   document.getElementById('authGo').onclick=authGo;
@@ -122,12 +122,25 @@ function hideLightbox(){const box=document.getElementById('lightbox');if(box)box
 document.addEventListener('click',e=>{if(e.target&&e.target.id==='lightbox')hideLightbox()});
 window.adminStatus=async(id,status)=>{ try{ await rpc('zd_admin_set_status',{p_token:state.token,p_user_id:id,p_status:status,p_reason:null}); renderAdmin(); }catch(e){alert(e.message)} };
 window.adminReject=async(id)=>{ const r=prompt('请输入打回原因'); if(!r)return; try{ await rpc('zd_admin_set_status',{p_token:state.token,p_user_id:id,p_status:'rejected',p_reason:r}); renderAdmin(); }catch(e){alert(e.message)} };
+function answerByLabel(uid,labels){
+  const sub=state.submissions.find(s=>s.userId===uid);
+  if(!sub||!sub.answers)return '';
+  const wanted=labels.map(x=>String(x).replace(/\s/g,''));
+  const field=state.fields.find(f=>wanted.includes(String(f.label||'').replace(/\s/g,'')));
+  if(!field)return '';
+  const v=sub.answers[field.id];
+  if(!v||typeof v==='object')return '';
+  return Array.isArray(v)?v.join('、'):String(v);
+}
 window.adminProfile=(id)=>{
   const u=state.users.find(x=>x.id===id);
   if(!u)return;
+  const weibo=u.weiboName||answerByLabel(id,['微博名','微博 ID','微博ID']);
+  const wechat=u.wechatName||answerByLabel(id,['微信名','微信 ID','微信ID']);
+  const offline=u.offlineGroup||answerByLabel(id,['是否在线下群','线下群']);
   const modal=document.createElement('div');
   modal.className='edit-modal';
-  modal.innerHTML='<div class="edit-card"><div class="head"><h3>修改用户资料</h3></div><div class="body"><label class="field"><span>微博名</span><input id="adminEditWeibo" value="'+esc(u.weiboName||'')+'"></label><label class="field"><span>微信名</span><input id="adminEditWechat" value="'+esc(u.wechatName||'')+'"></label><label class="field"><span>是否在线下群</span><select id="adminEditOffline"><option '+(u.offlineGroup==='是'?'selected':'')+'>是</option><option '+(u.offlineGroup==='否'?'selected':'')+'>否</option></select></label><div class="modal-actions"><button class="btn secondary" id="adminEditCancel">取消</button><button class="btn" id="adminEditOk">确定</button></div></div></div>';
+  modal.innerHTML='<div class="edit-card"><div class="head"><h3>修改用户资料</h3></div><div class="body"><label class="field"><span>微博名</span><input id="adminEditWeibo" value="'+esc(weibo)+'"></label><label class="field"><span>微信名</span><input id="adminEditWechat" value="'+esc(wechat)+'"></label><label class="field"><span>是否在线下群</span><select id="adminEditOffline"><option '+(offline==='是'?'selected':'')+'>是</option><option '+(offline==='否'?'selected':'')+'>否</option></select></label><div class="modal-actions"><button class="btn secondary" id="adminEditCancel">取消</button><button class="btn" id="adminEditOk">确定</button></div></div></div>';
   document.body.appendChild(modal);
   document.getElementById('adminEditCancel').onclick=()=>modal.remove();
   document.getElementById('adminEditOk').onclick=async()=>{
@@ -156,15 +169,24 @@ async function renderSeatmap(){
   document.getElementById('adminZone').value=z;
   document.getElementById('adminZone').onchange=e=>{state.selectedZone=e.target.value;renderAdmin()};
 }
-function parseRows(v,rows,max){ const arr=String(v||'').split(/[,，\s]+/).map(Number).filter(n=>n>0); return arr.length?arr:Array.from({length:+rows||1},()=>+max||1); }
+function parseRows(v,rows,max){
+  const custom=String(v||'').trim();
+  if(custom){
+    const arr=custom.split(/[,，\s]+/).map(Number).filter(n=>Number.isFinite(n)&&n>0);
+    if(arr.length)return arr;
+  }
+  const rowCount=rowInputToNumber(rows);
+  const seatMax=Math.max(1,Number(max)||1);
+  return Array.from({length:rowCount},()=>seatMax);
+}
 function renderConfig(){
   const tiers=[...new Set(['一层看台','二层看台','三层看台',...state.zones.map(z=>z.tier)])];
   const tierOptions=tiers.map(t=>'<option>'+esc(t)+'</option>').join('');
-  const add='<div class="config-add status" data-config-card="new"><label class="field"><span>新增区名</span><input class="zone-name" placeholder="如 318区"></label><label class="field"><span>楼层</span><select class="zone-tier">'+tierOptions+'</select></label><label class="field"><span>排数</span><input class="zone-rows" value="10"></label><label class="field"><span>最多号</span><input class="zone-max" value="20"></label><label class="field"><span>逐排座位数</span><input class="zone-counts" placeholder="可填 14,14,16；不填则按排数/最多号生成"></label><button class="btn" data-zone-act="save" data-old="">新增区域</button></div>';
+  const add='<div class="config-add status" data-config-card="new"><label class="field"><span>新增区名</span><input class="zone-name" placeholder="如 318区"></label><label class="field"><span>楼层</span><select class="zone-tier">'+tierOptions+'</select></label><label class="field"><span>排数</span><input class="zone-rows" value="10" placeholder="如 8 或 H"></label><label class="field"><span>最多号</span><input class="zone-max" value="20"></label><label class="field"><span>逐排座位数</span><input class="zone-counts" placeholder="可选：14,14,16；不填则按排数/最多号生成"></label><button class="btn" data-zone-act="save" data-old="">新增区域</button></div>';
   const groups=tiers.map(t=>{
     const items=state.zones.filter(z=>z.tier===t);
     if(!items.length)return '';
-    return '<div class="config-group"><h4>'+esc(t)+'</h4>'+items.map(z=>'<div class="config-card" data-config-card="old"><label class="field"><span>区名</span><input class="zone-name" value="'+esc(z.zone)+'"></label><label class="field"><span>楼层</span><select class="zone-tier">'+tiers.map(tt=>'<option '+(tt===z.tier?'selected':'')+'>'+esc(tt)+'</option>').join('')+'</select></label><label class="field"><span>排数</span><input class="zone-rows" value="'+esc(z.rowCounts.length)+'"></label><label class="field"><span>最多号</span><input class="zone-max" value="'+esc(Math.max(...z.rowCounts))+'"></label><label class="field"><span>逐排座位数</span><input class="zone-counts" value="'+esc(z.rowCounts.join(','))+'"></label><button class="btn secondary" data-zone-act="save" data-old="'+esc(z.zone)+'">保存</button><button class="btn danger" data-zone-act="delete" data-old="'+esc(z.zone)+'">删除</button></div>').join('')+'</div>';
+    return '<div class="config-group"><h4>'+esc(t)+'</h4>'+items.map(z=>'<div class="config-card" data-config-card="old"><label class="field"><span>区名</span><input class="zone-name" value="'+esc(z.zone)+'"></label><label class="field"><span>楼层</span><select class="zone-tier">'+tiers.map(tt=>'<option '+(tt===z.tier?'selected':'')+'>'+esc(tt)+'</option>').join('')+'</select></label><label class="field"><span>排数</span><input class="zone-rows" value="'+esc(z.rowCounts.length)+'" placeholder="如 8 或 H"></label><label class="field"><span>最多号</span><input class="zone-max" value="'+esc(Math.max(...z.rowCounts))+'"></label><label class="field"><span>逐排座位数</span><input class="zone-counts" placeholder="可选；当前 '+esc(z.rowCounts.join(','))+'"></label><button class="btn secondary" data-zone-act="save" data-old="'+esc(z.zone)+'">保存</button><button class="btn danger" data-zone-act="delete" data-old="'+esc(z.zone)+'">删除</button></div>').join('')+'</div>';
   }).join('');
   document.getElementById('adminBody').innerHTML='<div class="config-wrap">'+add+groups+'</div>';
   document.querySelectorAll('[data-zone-act]').forEach(btn=>btn.onclick=()=>{
