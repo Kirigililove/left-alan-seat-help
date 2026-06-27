@@ -516,32 +516,54 @@ function renderConfig(){
     if(!items.length)return '';
     return '<div class="config-group"><h4>'+esc(t)+'</h4>'+items.map(z=>'<div class="config-card" data-config-card="old"><label class="field"><span>区名</span><input class="zone-name" value="'+esc(z.zone)+'"></label><label class="field"><span>楼层</span><select class="zone-tier">'+tiers.map(tt=>'<option '+(tt===z.tier?'selected':'')+'>'+esc(tt)+'</option>').join('')+'</select></label><label class="field"><span>起始排</span><input class="zone-start" value="'+esc(rowLabel(zoneRowStart(z)))+'" placeholder="如 E"></label><label class="field"><span>计算方式</span><select class="zone-row-mode">'+rowModeOptions('end')+'</select></label><label class="field"><span>排数 / 末排</span><input class="zone-rows" value="'+esc(rowPlanValue(z))+'" placeholder="按末排填 M；按排数填 8"></label><label class="field"><span>最多号</span><input class="zone-max" value="'+esc(Math.max(...z.rowCounts))+'"></label><label class="field"><span>逐排座位数</span><input class="zone-counts" placeholder="可选；当前 '+esc(z.rowCounts.join(','))+'"></label><button class="btn secondary" data-zone-act="save" data-old="'+esc(z.zone)+'">保存</button><button class="btn danger" data-zone-act="delete" data-old="'+esc(z.zone)+'">删除</button></div>').join('')+'</div>';
   }).join('');
-  document.getElementById('adminBody').innerHTML='<div class="config-wrap">'+add+groups+'</div>';
+  const toolbar='<div class="status"><b>批量操作</b><p class="muted">改完多个区域后，可以点这里一次性保存全部现有区域。新增区域还是用上面的“新增区域”。</p><button class="btn secondary" data-zone-act="save-all">一键保存全部区域</button></div>';
+  document.getElementById('adminBody').innerHTML='<div class="config-wrap">'+add+toolbar+groups+'</div>';
   document.querySelectorAll('[data-zone-act]').forEach(btn=>btn.onclick=()=>{
     if(btn.dataset.zoneAct==='save') saveZone(btn);
+    if(btn.dataset.zoneAct==='save-all') saveAllZones();
     if(btn.dataset.zoneAct==='delete') deleteZone(btn.dataset.old||'');
   });
+}
+function zonePayloadFromCard(card,old){
+  const zone=card.querySelector('.zone-name').value.trim();
+  const tier=card.querySelector('.zone-tier').value;
+  const countsEl=card.querySelector('.zone-counts');
+  const rowsEl=card.querySelector('.zone-rows');
+  const maxEl=card.querySelector('.zone-max');
+  const startEl=card.querySelector('.zone-start');
+  const modeEl=card.querySelector('.zone-row-mode');
+  if(!zone)throw new Error('请填写区名');
+  const rowStart=rowInputToNumber(startEl?startEl.value:'A');
+  const counts=parseRows(countsEl?countsEl.value:'',rowsEl?rowsEl.value:'M',maxEl?maxEl.value:1,rowStart,modeEl?modeEl.value:'end');
+  return {old,zone,tier,counts,rowStart};
+}
+async function persistZoneConfig(payload){
+  await rpc('zd_admin_save_zone',{p_token:state.token,p_old_zone:payload.old,p_tier:payload.tier,p_zone:payload.zone,p_row_counts:payload.counts,p_row_start:payload.rowStart});
 }
 window.saveZone=async(btn)=>{
   try{
     const card=btn.closest('[data-config-card]');
-    const old=btn.dataset.old||'';
-    const zone=card.querySelector('.zone-name').value.trim();
-    const tier=card.querySelector('.zone-tier').value;
-    const countsEl=card.querySelector('.zone-counts');
-    const rowsEl=card.querySelector('.zone-rows');
-    const maxEl=card.querySelector('.zone-max');
-    const startEl=card.querySelector('.zone-start');
-    if(!zone)return await appAlert('请填写区名');
-    const modeEl=card.querySelector('.zone-row-mode');
-    const rowStart=rowInputToNumber(startEl?startEl.value:'A');
-    const counts=parseRows(countsEl?countsEl.value:'',rowsEl?rowsEl.value:'M',maxEl?maxEl.value:1,rowStart,modeEl?modeEl.value:'end');
-    await rpc('zd_admin_save_zone',{p_token:state.token,p_old_zone:old,p_tier:tier,p_zone:zone,p_row_counts:counts,p_row_start:rowStart});
+    const payload=zonePayloadFromCard(card,btn.dataset.old||'');
+    await persistZoneConfig(payload);
     state.zones=await rpc('zd_zones');
+    await appAlert((btn.dataset.old?'区域配置已保存':'区域已新增'),'保存成功');
     renderAdmin();
   }catch(e){await appAlert(e.message,'出错了')}
 };
-window.deleteZone=async(z)=>{ if(!await appConfirm('确定删除 '+z+' 吗？已经有人登记的区不能删除。','删除区域',true))return; try{await rpc('zd_admin_delete_zone',{p_token:state.token,p_zone:z}); state.zones=await rpc('zd_zones'); renderAdmin();}catch(e){await appAlert(e.message,'出错了')}};
+window.saveAllZones=async()=>{
+  try{
+    const cards=[...document.querySelectorAll('[data-config-card="old"]')];
+    if(!cards.length)return await appAlert('目前没有可保存的区域');
+    for(const card of cards){
+      const saveBtn=card.querySelector('[data-zone-act="save"]');
+      await persistZoneConfig(zonePayloadFromCard(card,saveBtn?saveBtn.dataset.old:''));
+    }
+    state.zones=await rpc('zd_zones');
+    await appAlert('已保存 '+cards.length+' 个区域','保存成功');
+    renderAdmin();
+  }catch(e){await appAlert(e.message,'出错了')}
+};
+window.deleteZone=async(z)=>{ if(!await appConfirm('确定删除 '+z+' 吗？已经有人登记的区不能删除。','删除区域',true))return; try{await rpc('zd_admin_delete_zone',{p_token:state.token,p_zone:z}); state.zones=await rpc('zd_zones'); await appAlert('区域已删除','已删除'); renderAdmin();}catch(e){await appAlert(e.message,'出错了')}};
 function proofTypeOptions(value){return ['image:图片上传','text:填空','radio:单选','checkbox:多选'].map(x=>{let [v,l]=x.split(':');return '<option value="'+v+'" '+(value===v?'selected':'')+'>'+l+'</option>'}).join('')}
 function requiredOptions(value){return '<option value="true" '+(value!==false?'selected':'')+'>必填</option><option value="false" '+(value===false?'selected':'')+'>非必填</option>'}
 function renderProofConfig(){
