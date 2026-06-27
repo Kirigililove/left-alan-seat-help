@@ -256,7 +256,7 @@ async function renderSeatAudit(){
     const current=r.currentSeat?'当前座位：'+esc(seatDisplayText(r.currentSeat)):'当前无已审核座位';
     const rejected=r.status==='rejected';
     const actions=r.status==='pending'?'<button class="btn" data-seat-act="approve" data-id="'+esc(r.id)+'">通过座位</button><button class="btn danger" data-seat-act="reject" data-id="'+esc(r.id)+'">打回座位</button>':'<small class="muted">已打回，等待用户重新提交</small>';
-    return '<div class="row '+(rejected?'danger':'')+'"><div><b>'+esc(r.account)+' · '+esc(r.weiboName||'未填微博名')+'</b><span class="state-chip '+esc(r.status)+'">'+seatRequestLabel(r.status)+'</span><p>'+esc(r.seatText)+' · 用户身份：'+statusLabel(r.userStatus)+'</p><p class="muted">'+current+'</p>'+(r.rejectReason?'<p>打回原因：'+esc(r.rejectReason)+'</p>':'')+'<div class="proofs"><div class="proof"><img src="'+esc(r.screenshotUrl)+'" data-proof-img="'+esc(r.screenshotUrl)+'"><span>座位号码截图</span></div></div></div><div class="mini">'+actions+'</div></div>';
+    return '<div class="row '+(rejected?'danger':'')+'"><div><b>'+esc(r.account)+' · '+esc(r.weiboName||'未填微博名')+'</b><span class="state-chip '+esc(r.status)+'">'+seatRequestLabel(r.status)+'</span><p>'+esc(seatDisplayText(r))+' · 用户身份：'+statusLabel(r.userStatus)+'</p><p class="muted">'+current+'</p>'+(r.rejectReason?'<p>打回原因：'+esc(r.rejectReason)+'</p>':'')+'<div class="proofs"><div class="proof"><img src="'+esc(r.screenshotUrl)+'" data-proof-img="'+esc(r.screenshotUrl)+'"><span>座位号码截图</span></div></div></div><div class="mini">'+actions+'</div></div>';
   }).join(''):'<div class="status">暂无待审核座位</div>';
   bindProofImages();
   document.querySelectorAll('[data-seat-act]').forEach(btn=>btn.onclick=()=>{
