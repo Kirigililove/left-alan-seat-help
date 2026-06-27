@@ -61,13 +61,15 @@ async function appAlert(message,title='提示'){await modalForm({title,message:S
 async function appConfirm(message,title='请确认',danger=false){return !!(await modalForm({title,message:String(message||''),okText:'确定',cancelText:'取消',danger}));}
 async function appPrompt(title,label,{value='',placeholder='',textarea=false}={}){const res=await modalForm({title,fields:[{id:'value',label,value,placeholder,type:textarea?'textarea':'text'}]});return res?String(res.value||'').trim():null;}
 window.alert=(message)=>{appAlert(message)};
+window.confirm=(message)=>{appAlert(message,'请确认');return false};
+window.prompt=(message)=>{appAlert(message,'请输入');return null};
 function renderAuth(){
   html('<section class="panel auth-hero"><div class="auth-card"><div class="auth-copy"><h3>左邓粉丝专属座位互助</h3><p class="muted">先注册账号，提交自证，通过后再登记座位。未审核用户不会看到座位图。</p><div class="steps"><div class="step"><span class="dot">1</span>注册账号</div><div class="step"><span class="dot">2</span>上传自证</div><div class="step"><span class="dot">3</span>等待审核</div><div class="step"><span class="dot">4</span>座位审核后查看附近同担</div></div></div><div class="auth-form"><div class="tabs"><button id="loginTab" class="'+(state.tab==='login'?'active':'')+'">登录</button><button id="regTab" class="'+(state.tab==='register'?'active':'')+'">注册账号</button></div><div class="form"><label class="field full"><span>账号 / 昵称</span><input id="account"></label><label class="field full"><span>密码</span><input id="password" type="password"></label>'+(state.tab==='register'?'<label class="field full"><span>确认密码</span><input id="password2" type="password"></label>':'')+'<button id="authGo" class="btn full">'+(state.tab==='register'?'注册':'登录')+'</button><p class="muted full">如果忘记密码，请联系小管注销旧账号，再注册新的。</p></div></div></div></section>');
   document.getElementById('loginTab').onclick=()=>{state.tab='login';render()};
   document.getElementById('regTab').onclick=()=>{state.tab='register';render()};
   document.getElementById('authGo').onclick=authGo;
 }
-async function authGo(){ const account=document.getElementById('account').value.trim(); const password=document.getElementById('password').value; try{ if(state.tab==='register'){ if(password!==document.getElementById('password2').value) return alert('两次密码不一致'); const res=await rpc('zd_register',{p_account:account,p_password:password}); alert('注册成功\n\n你的账号是：'+account+'\n密码是：'+password+'\n\n请截图避免遗忘。'); setUser(res.token,res.user); }else{ const res=await rpc('zd_login',{p_account:account,p_password:password}); setUser(res.token,res.user); }}catch(e){alert(e.message)} }
+async function authGo(){ const account=document.getElementById('account').value.trim(); const password=document.getElementById('password').value; try{ if(state.tab==='register'){ if(password!==document.getElementById('password2').value) return await appAlert('两次密码不一致'); const res=await rpc('zd_register',{p_account:account,p_password:password}); await appAlert('注册成功\n\n你的账号是：'+account+'\n密码是：'+password+'\n\n请截图避免遗忘。','注册成功'); setUser(res.token,res.user); }else{ const res=await rpc('zd_login',{p_account:account,p_password:password}); setUser(res.token,res.user); }}catch(e){await appAlert(e.message,'出错了')} }
 function renderProof(){
   const fields=state.fields.map(f=>proofInput(f)).join('');
   const req=state.user.seatRequest||{};
@@ -132,9 +134,9 @@ async function submitProof(ev){
       user=await rpc('zd_request_seat',{p_token:state.token,p_zone:parsedSeat.zone,p_row:parsedSeat.row,p_no:parsedSeat.no,p_screenshot_url:seatUrl,p_message:''});
       state.user=user;
     }
-    alert(parsedSeat?'身份自证和座位截图都已提交，等待管理员审核':'身份自证已提交。座位还没出的话，通过身份审核后也不会显示座位图。');
+    await appAlert(parsedSeat?'身份自证和座位截图都已提交，等待管理员审核':'身份自证已提交。座位还没出的话，通过身份审核后也不会显示座位图。','已提交');
     render();
-  }catch(e){alert(e.message)}
+  }catch(e){await appAlert(e.message,'出错了')}
 }
 function zoneOptions(){return state.zones.map(z=>'<option value="'+esc(z.zone)+'">'+esc(z.zone)+'</option>').join('')}
 function seatRequestLabel(s){return {pending:'座位待审核',approved:'座位已通过',rejected:'座位已打回'}[s]||s}
@@ -212,9 +214,9 @@ async function saveSeat(){
     const user=await rpc('zd_request_seat',{p_token:state.token,p_zone:document.getElementById('seatZone').value,p_row:rowInputToNumber(rowRaw),p_no:+noRaw,p_screenshot_url:screenshotUrl,p_message:noteEl?noteEl.value:state.user.fanNote});
     state.user=user;
     state.seatEditMode=false;
-    alert('座位申请已提交，等待管理员审核');
+    await appAlert('座位申请已提交，等待管理员审核','已提交');
     render();
-  }catch(e){alert(e.message)}
+  }catch(e){await appAlert(e.message,'出错了')}
 }
 async function withdrawSeatRequest(){
   if(!await appConfirm('确定撤回这次座位变更吗？撤回后管理员后台对应的座位审核会消失。', '撤回座位变更', true))return;
@@ -222,12 +224,12 @@ async function withdrawSeatRequest(){
     const user=await rpc('zd_withdraw_seat_request',{p_token:state.token});
     state.user=user;
     state.seatEditMode=false;
-    alert('已撤回座位变更');
+    await appAlert('已撤回座位变更','已撤回');
     render();
-  }catch(e){alert(e.message)}
+  }catch(e){await appAlert(e.message,'出错了')}
 }
-async function saveNote(){ try{ const user=await rpc('zd_save_note',{p_token:state.token,p_note:document.getElementById('note').value}); state.user=user; alert('留言已保存'); render(); }catch(e){alert(e.message)} }
-async function saveProfile(){ try{ const user=await rpc('zd_update_profile',{p_token:state.token,p_weibo:document.getElementById('profileWeibo').value,p_wechat:document.getElementById('profileWechat').value,p_offline:document.getElementById('profileOffline').value==='是'}); state.user=user; alert('公开资料已保存'); render(); }catch(e){alert(e.message)} }
+async function saveNote(){ try{ const user=await rpc('zd_save_note',{p_token:state.token,p_note:document.getElementById('note').value}); state.user=user; await appAlert('留言已保存','已保存'); render(); }catch(e){await appAlert(e.message,'出错了')} }
+async function saveProfile(){ try{ const user=await rpc('zd_update_profile',{p_token:state.token,p_weibo:document.getElementById('profileWeibo').value,p_wechat:document.getElementById('profileWechat').value,p_offline:document.getElementById('profileOffline').value==='是'}); state.user=user; await appAlert('公开资料已保存','已保存'); render(); }catch(e){await appAlert(e.message,'出错了')} }
 function zoneConfig(zone){return state.zones.find(z=>z.zone===zone)}
 function renderSeatWindow(seat, people){
   const cfg=zoneConfig(seat.zone);
@@ -293,15 +295,15 @@ async function renderSeatAudit(){
     if(btn.dataset.seatAct==='reject') adminRejectSeat(btn.dataset.id);
   });
 }
-async function adminReviewSeat(id,status,reason=null){ try{ await rpc('zd_admin_review_seat',{p_token:state.token,p_request_id:id,p_status:status,p_reason:reason}); renderAdmin(); }catch(e){alert(e.message)} }
+async function adminReviewSeat(id,status,reason=null){ try{ await rpc('zd_admin_review_seat',{p_token:state.token,p_request_id:id,p_status:status,p_reason:reason}); renderAdmin(); }catch(e){await appAlert(e.message,'出错了')} }
 async function adminRejectSeat(id){ const r=await appPrompt('座位审核打回','打回原因',{textarea:true,placeholder:'请写清楚需要重新提交的原因'}); if(!r)return; adminReviewSeat(id,'rejected',r); }
 function proofHtml(uid){ const sub=state.submissions.find(s=>s.userId===uid); if(!sub) return '<p class="muted">暂无自证</p>'; return '<div class="proofs">'+state.fields.filter(f=>!isProfileField(f)).map(f=>{const v=sub.answers?.[f.id]; if(!v)return '<div class="proof">'+esc(f.label)+'：未提交</div>'; if(v.type==='image')return '<div class="proof"><img src="'+esc(v.url)+'" data-proof-img="'+esc(v.url)+'"><span>'+esc(f.label)+'</span></div>';  return '<div class="proof">'+esc(f.label)+'：'+esc(Array.isArray(v)?v.join('、'):v)+'</div>';}).join('')+'</div>'; }
 function bindProofImages(){document.querySelectorAll('[data-proof-img]').forEach(img=>img.onclick=()=>showLightbox(img.dataset.proofImg));}
 function showLightbox(src){const box=document.getElementById('lightbox');const image=document.getElementById('lightboxImg');if(!box||!image)return;image.src=src;box.classList.remove('hide')}
 function hideLightbox(){const box=document.getElementById('lightbox');if(box)box.classList.add('hide')}
 document.addEventListener('click',e=>{if(e.target&&e.target.id==='lightbox')hideLightbox()});
-window.adminStatus=async(id,status)=>{ try{ if(status==='deactivated'&&!await appConfirm('确定注销这个账号吗？注销后会清空座位、自证、座位审核和公开资料。','确认注销账号',true))return; await rpc('zd_admin_set_status',{p_token:state.token,p_user_id:id,p_status:status,p_reason:null}); renderAdmin(); }catch(e){alert(e.message)} };
-window.adminReject=async(id)=>{ const r=await appPrompt('自证审核打回','打回原因',{textarea:true,placeholder:'请写清楚需要重新提交的原因'}); if(!r)return; try{ await rpc('zd_admin_set_status',{p_token:state.token,p_user_id:id,p_status:'rejected',p_reason:r}); renderAdmin(); }catch(e){alert(e.message)} };
+window.adminStatus=async(id,status)=>{ try{ if(status==='deactivated'&&!await appConfirm('确定注销这个账号吗？注销后会清空座位、自证、座位审核和公开资料。','确认注销账号',true))return; await rpc('zd_admin_set_status',{p_token:state.token,p_user_id:id,p_status:status,p_reason:null}); renderAdmin(); }catch(e){await appAlert(e.message,'出错了')} };
+window.adminReject=async(id)=>{ const r=await appPrompt('自证审核打回','打回原因',{textarea:true,placeholder:'请写清楚需要重新提交的原因'}); if(!r)return; try{ await rpc('zd_admin_set_status',{p_token:state.token,p_user_id:id,p_status:'rejected',p_reason:r}); renderAdmin(); }catch(e){await appAlert(e.message,'出错了')} };
 function answerByLabel(uid,labels){
   const sub=state.submissions.find(s=>s.userId===uid);
   if(!sub||!sub.answers)return '';
@@ -328,7 +330,7 @@ window.adminProfile=(id)=>{
       await rpc('zd_admin_update_profile',{p_token:state.token,p_user_id:id,p_weibo:document.getElementById('adminEditWeibo').value,p_wechat:document.getElementById('adminEditWechat').value,p_offline:document.getElementById('adminEditOffline').value==='是'});
       modal.remove();
       renderAdmin();
-    }catch(e){alert(e.message)}
+    }catch(e){await appAlert(e.message,'出错了')}
   };
 };
 window.adminSeat=async(id)=>{
@@ -350,7 +352,7 @@ window.adminSeat=async(id)=>{
   try{
     await rpc('zd_admin_save_seat',{p_token:state.token,p_user_id:id,p_zone:res.zone,p_row:rowInputToNumber(res.row),p_no:+res.no});
     renderAdmin();
-  }catch(e){alert(e.message)}
+  }catch(e){await appAlert(e.message,'出错了')}
 };
 async function renderStats(){ const s=await rpc('zd_admin_stats',{p_token:state.token}); document.getElementById('adminBody').innerHTML='<div class="stat-grid">'+['totalUsers:总用户','approved:身份通过','pending:身份待审','rejected:身份打回','deactivated:注销','seated:已登记座位','seatPending:座位待审'].map(x=>{let[k,l]=x.split(':');return '<div class="status">'+l+'<br><b>'+(s[k]||0)+'</b></div>'}).join('')+'</div>'+Object.entries(s.byZone||{}).map(([z,c])=>'<div class="row"><b>'+esc(z)+'</b><small>'+c+' 人</small></div>').join(''); }
 async function renderSeatmap(){
@@ -403,21 +405,21 @@ window.saveZone=async(btn)=>{
     const countsEl=card.querySelector('.zone-counts');
     const rowsEl=card.querySelector('.zone-rows');
     const maxEl=card.querySelector('.zone-max');
-    if(!zone)return alert('请填写区名');
+    if(!zone)return await appAlert('请填写区名');
     const counts=parseRows(countsEl?countsEl.value:'',rowsEl?rowsEl.value:1,maxEl?maxEl.value:1);
     await rpc('zd_admin_save_zone',{p_token:state.token,p_old_zone:old,p_tier:tier,p_zone:zone,p_row_counts:counts});
     state.zones=await rpc('zd_zones');
     renderAdmin();
-  }catch(e){alert(e.message)}
+  }catch(e){await appAlert(e.message,'出错了')}
 };
-window.deleteZone=async(z)=>{ if(!await appConfirm('确定删除 '+z+' 吗？已经有人登记的区不能删除。','删除区域',true))return; try{await rpc('zd_admin_delete_zone',{p_token:state.token,p_zone:z}); state.zones=await rpc('zd_zones'); renderAdmin();}catch(e){alert(e.message)}};
+window.deleteZone=async(z)=>{ if(!await appConfirm('确定删除 '+z+' 吗？已经有人登记的区不能删除。','删除区域',true))return; try{await rpc('zd_admin_delete_zone',{p_token:state.token,p_zone:z}); state.zones=await rpc('zd_zones'); renderAdmin();}catch(e){await appAlert(e.message,'出错了')}};
 function renderProofConfig(){
   document.getElementById('adminBody').innerHTML='<div class="row"><input id="pfLabel" placeholder="新增项名称"><select id="pfType"><option value="image">图片上传</option><option value="text">填空</option><option value="radio">单选</option><option value="checkbox">多选</option></select><input id="pfOptions" placeholder="选项 是,否"><button class="btn" id="addFieldBtn">新增</button></div>'+state.fields.filter(f=>!isProfileField(f)).map(f=>'<div class="row"><b>'+esc(f.label)+'</b><small>'+esc(f.type)+'</small><button class="btn danger" data-field-id="'+esc(f.id)+'">删除</button></div>').join('');
   document.getElementById('addFieldBtn').onclick=addField;
   document.querySelectorAll('[data-field-id]').forEach(btn=>btn.onclick=()=>deleteField(btn.dataset.fieldId));
 }
-window.addField=async()=>{ try{ await rpc('zd_admin_add_proof_field',{p_token:state.token,p_label:document.getElementById('pfLabel').value,p_type:document.getElementById('pfType').value,p_options:document.getElementById('pfOptions').value.split(/[,，]/).map(s=>s.trim()).filter(Boolean)}); state.fields=await rpc('zd_proof_fields'); renderAdmin(); }catch(e){alert(e.message)} };
-window.deleteField=async(id)=>{ try{ await rpc('zd_admin_delete_proof_field',{p_token:state.token,p_field_id:id}); state.fields=await rpc('zd_proof_fields'); renderAdmin(); }catch(e){alert(e.message)} };
+window.addField=async()=>{ try{ await rpc('zd_admin_add_proof_field',{p_token:state.token,p_label:document.getElementById('pfLabel').value,p_type:document.getElementById('pfType').value,p_options:document.getElementById('pfOptions').value.split(/[,，]/).map(s=>s.trim()).filter(Boolean)}); state.fields=await rpc('zd_proof_fields'); renderAdmin(); }catch(e){await appAlert(e.message,'出错了')} };
+window.deleteField=async(id)=>{ try{ await rpc('zd_admin_delete_proof_field',{p_token:state.token,p_field_id:id}); state.fields=await rpc('zd_proof_fields'); renderAdmin(); }catch(e){await appAlert(e.message,'出错了')} };
 boot();
 </script>
 </body>
